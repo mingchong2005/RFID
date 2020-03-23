@@ -1,0 +1,312 @@
+package com.example.rfid;
+
+import android.Manifest;
+import android.app.AlertDialog;
+import android.app.PendingIntent;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.nfc.NfcAdapter;
+import android.nfc.Tag;
+import android.nfc.tech.MifareClassic;
+import android.os.Build;
+import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.text.method.ScrollingMovementMethod;
+import android.util.Log;
+import android.view.View;
+import android.widget.TextView;
+
+import android.app.AlertDialog; 
+import android.app.AlertDialog.Builder; 
+import android.content.DialogInterface; 
+import android.content.DialogInterface.OnClickListener;
+
+import java.io.IOException;
+
+/**
+ * @author kuan
+ * Created on 2019/2/25.
+ * @description
+ */
+public class NfcActivity extends AppCompatActivity {
+    public static  NfcAdapter mNfcAdapter;
+    public static  Tag mTag;
+	private static boolean validCard = false;
+	private static boolean blankCard = false;
+    private AlertDialog mValidCardDialog = null;
+    private AlertDialog mBlankCardDialog = null;
+    TextView textView;
+
+    private AlertDialog mReadDialog = null;
+    private AlertDialog mWriteDialog = null;
+    private AlertDialog mNoMiDialog = null;
+
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        mNfcAdapter = M1CardUtils.isNfcAble(this);
+        M1CardUtils.setPendingIntent(PendingIntent.getActivity(this, 0, new Intent(this,
+                getClass()), 0));
+        mTag = getIntent().getParcelableExtra(NfcAdapter.EXTRA_TAG);
+
+        textView = findViewById(R.id.card_content);
+
+        noMifarealertDialog();
+        readMifarealertDialog();
+        writeMifarealertDialog();
+		judgeValidCardDialog();
+		judgeBlankCardDialog();
+		
+        verifyStoragePermissions(this);
+        //writeMifarealertDialog();
+/*
+        //read
+        findViewById(R.id.btn_read_data).setOnClickListener(v -> {
+			startActivity(new Intent(NfcActivity.this, M1CardRead.class));
+        });
+        //write
+        findViewById(R.id.btn_write_data).setOnClickListener(v->{
+			startActivity(new Intent(NfcActivity.this, M1CardWrite.class));
+        });
+		//Back
+		findViewById(R.id.btn_user_management).setOnClickListener(v->{
+			//startActivity(new Intent(NfcActivity.this, M1CardRead.class));
+		});
+ */
+
+    }
+
+    public static void verifyStoragePermissions(AppCompatActivity activity) {
+        if (Build.VERSION.SDK_INT >= 23) {
+            int REQUEST_CODE_CONTACT = 101;
+            String[] permissions = {Manifest.permission.WRITE_EXTERNAL_STORAGE};
+            for (String str : permissions) {
+                if (activity.checkSelfPermission(str) != PackageManager.PERMISSION_GRANTED) {
+                    activity.requestPermissions(permissions, REQUEST_CODE_CONTACT);
+                    return;
+                } else {
+                }
+            }
+        }
+
+    }
+
+    public void onButtonClick(View view) {
+	    switch (view.getId()) {
+	        case R.id.btn_read_data:
+	            if (M1CardUtils.hasCardType(mTag, this, "MifareClassic")) {
+					if(blankCard){
+						mBlankCardDialog.show();
+					}else{
+						if(validCard){
+							mReadDialog.show();
+						}else{
+							mValidCardDialog.show();
+						}
+					}
+	            }else{
+	                mNoMiDialog.show();
+	            }
+	            break;
+	        case R.id.btn_write_data:
+	            if (M1CardUtils.hasCardType(mTag, this, "MifareClassic")) {
+					if(blankCard){
+						mWriteDialog.setMessage(blankCard ? "空白卡, 确定写入铅封数据吗？" : "确定写入铅封数据吗？");
+						mWriteDialog.show();
+					}else{
+						if(validCard){
+							mWriteDialog.show();
+						}else{
+							mValidCardDialog.show();
+						}
+					}
+				}else{
+					mNoMiDialog.show();
+				}
+	            break;
+	        case R.id.btn_user_management:
+	            //finish();
+	            break;
+	        case R.id.btn_quit:
+	            finish();
+	            break;
+	        default:
+	            break;
+	    }
+    }
+
+    private void  noMifarealertDialog() {
+        if(mNoMiDialog == null){
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setIcon(null);
+            //builder.setTitle("ZhaoKaifeng.com");
+            builder.setMessage("请帖RFID卡？");
+            builder.setPositiveButton("确定", new DialogInterface.OnClickListener(){
+                @Override
+                public void onClick(DialogInterface arg0, int arg1){
+                    //Toast.makeText(M1CardRead.this,"\u786e\u5b9a\u6210\u529f\uff01",Toast.LENGTH_SHORT).show();
+                    //startActivity(new Intent(NfcActivity.this, M1CardRead.class));
+                }
+            });
+
+            builder.setNegativeButton("取消", new DialogInterface.OnClickListener(){
+                @Override
+                public void onClick(DialogInterface arg0,int arg1){
+                    //Toast.makeText(M1CardRead.this, "\u53d6\u6d88\u6210\u529f\uff01", Toast.LENGTH_SHORT).show();
+                }
+            });
+            mNoMiDialog = builder.create();
+        }
+    }
+
+    private void  readMifarealertDialog() {
+        if(mReadDialog == null){
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setIcon(null);
+            //builder.setTitle("ZhaoKaifeng.com");
+            builder.setMessage("确定读取铅封数据吗？");
+            builder.setPositiveButton("确定", new DialogInterface.OnClickListener(){
+                @Override
+                public void onClick(DialogInterface arg0, int arg1){
+                    //Toast.makeText(M1CardRead.this,"\u786e\u5b9a\u6210\u529f\uff01",Toast.LENGTH_SHORT).show();
+                    startActivity(new Intent(NfcActivity.this, M1CardRead.class));
+                }
+            });
+
+            builder.setNegativeButton("取消", new DialogInterface.OnClickListener(){
+                @Override
+                public void onClick(DialogInterface arg0,int arg1){
+                    //Toast.makeText(M1CardRead.this, "\u53d6\u6d88\u6210\u529f\uff01", Toast.LENGTH_SHORT).show();
+                }
+            });
+            mReadDialog = builder.create();
+        }
+    }
+
+    private void  writeMifarealertDialog() {
+        if(mWriteDialog == null){
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setIcon(null);
+            //builder.setTitle("ZhaoKaifeng.com");
+            builder.setMessage("确定写入铅封数据吗？");
+            builder.setPositiveButton("确定", new DialogInterface.OnClickListener(){
+                @Override
+                public void onClick(DialogInterface arg0, int arg1){
+                    //Toast.makeText(M1CardRead.this,"\u786e\u5b9a\u6210\u529f\uff01",Toast.LENGTH_SHORT).show();
+                    startActivity(new Intent(NfcActivity.this, M1CardWrite.class));
+                }
+            });
+
+            builder.setNegativeButton("取消", new DialogInterface.OnClickListener(){
+                @Override
+                public void onClick(DialogInterface arg0,int arg1){
+                    //Toast.makeText(M1CardRead.this, "\u53d6\u6d88\u6210\u529f\uff01", Toast.LENGTH_SHORT).show();
+                }
+            });
+            mWriteDialog = builder.create();
+        }
+    }
+
+    public static NfcAdapter GetNfcAdapter() {
+        return mNfcAdapter;
+    }
+
+    public static Tag GetTag() {
+        return mTag;
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        mNfcAdapter = M1CardUtils.isNfcAble(this);
+        M1CardUtils.setPendingIntent(PendingIntent.getActivity(this, 0, new Intent(this,
+                getClass()), 0));
+        Log.e("onNewIntent","onNewIntent");
+        mTag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
+
+		try {
+			StringBuilder stringBuilder = new StringBuilder();
+
+			String m1Content = M1CardUtils.readCardInfo(mTag);
+
+			blankCard = M1CardUtils.JudgeBlankCard(mTag);
+
+			if(blankCard){
+				mBlankCardDialog.show();//\u663e\u793a\u5bf9\u8bdd\u6846
+			}else{
+				validCard = M1CardUtils.JudgeIllegalCard(mTag);
+				if(!validCard){
+					mValidCardDialog.show();//\u663e\u793a\u5bf9\u8bdd\u6846
+				}
+			}
+			/*
+			for (int i = 0; i < m1Content.length; i++) {
+				for (int j = 0; j < m1Content[i].length; j++) {
+					stringBuilder.append(m1Content[i][j]+"\n");
+				}
+			}*/
+			//textView.setText(m1Content);
+			//writeFileData(fileName,stringBuilder.toString());
+			//writeTxtInOutDisk(this,stringBuilder.toString()); 
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+    }
+
+
+	private void  judgeValidCardDialog() {
+        if(mValidCardDialog == null){
+			AlertDialog.Builder builder = new AlertDialog.Builder(this);
+			builder.setIcon(null);
+			//builder.setTitle("ZhaoKaifeng.com");
+			builder.setMessage("\u975e\u6cd5\u5361");
+			builder.setPositiveButton("确定", new OnClickListener(){
+				@Override
+				public void onClick(DialogInterface arg0, int arg1){
+					//Toast.makeText(M1CardRead.this,"\u786e\u5b9a\u6210\u529f\uff01",Toast.LENGTH_SHORT).show();
+					//writeTxtInOutDisk(M1CardRead.this,m1Content, true,true);
+				}
+			});
+			mValidCardDialog = builder.create();
+        	}
+		}
+	
+		private void  judgeBlankCardDialog() {
+			if(mBlankCardDialog == null){
+				AlertDialog.Builder builder = new AlertDialog.Builder(this);
+				builder.setIcon(null);
+				//builder.setTitle("ZhaoKaifeng.com");
+				builder.setMessage("\u7a7a\u767d\u5361");
+				builder.setPositiveButton("确定", new OnClickListener(){
+					@Override
+					public void onClick(DialogInterface arg0, int arg1){
+						//Toast.makeText(M1CardRead.this,"\u786e\u5b9a\u6210\u529f\uff01",Toast.LENGTH_SHORT).show();
+						//writeTxtInOutDisk(M1CardRead.this,m1Content, true,true);
+					}
+				});
+				mBlankCardDialog = builder.create();
+				}
+			}
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (mNfcAdapter != null) {
+            mNfcAdapter.disableForegroundDispatch(this);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (mNfcAdapter != null) {
+            mNfcAdapter.enableForegroundDispatch(this, M1CardUtils.getPendingIntent(),
+                    null, null);
+        }
+    }
+
+}
